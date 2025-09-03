@@ -1,0 +1,359 @@
+{% extends 'reports/base.html' %}
+
+{% block title %}Community Waste Reporting - Home{% endblock %}
+
+{% block extra_css %}
+<style>
+    .content {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+    }
+    
+    @media (max-width: 768px) {
+        .content {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    .form-section {
+        background: #f8f9fa;
+        padding: 25px;
+        border-radius: 10px;
+        border: 1px solid #e9ecef;
+    }
+    
+    .form-section h2 {
+        color: #495057;
+        margin-top: 0;
+        margin-bottom: 20px;
+        font-size: 1.5em;
+    }
+    
+    .map-section {
+        background: #f8f9fa;
+        padding: 25px;
+        border-radius: 10px;
+        border: 1px solid #e9ecef;
+    }
+    
+    .map-section h2 {
+        color: #495057;
+        margin-top: 0;
+        margin-bottom: 20px;
+        font-size: 1.5em;
+    }
+    
+    .map { 
+        height: 400px; 
+        width: 100%; 
+        border-radius: 10px;
+        border: 2px solid #e9ecef;
+    }
+    
+    .form-group {
+        margin-bottom: 20px;
+    }
+    
+    label { 
+        font-weight: 600;
+        color: #495057;
+        display: block;
+        margin-bottom: 8px;
+    }
+    
+    .hidden {
+        display: none;
+    }
+    
+    .loading {
+        display: none;
+        text-align: center;
+        padding: 20px;
+    }
+    
+    .spinner {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #28a745;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 10px;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .stat-card {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .stat-number {
+        font-size: 2em;
+        font-weight: bold;
+        color: #28a745;
+    }
+    
+    .stat-label {
+        color: #6c757d;
+        margin-top: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h1>🌍 Community Waste Reporting</h1>
+        <p>Help keep our community clean by reporting illegal waste dumping</p>
+    </div>
+    
+    <div class="card-body">
+        <div class="content">
+            <div class="form-section">
+                <h2>📸 Report Waste Issue</h2>
+                
+                <div id="alert" class="alert" style="display: none;"></div>
+                
+                <form id="reportForm" method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    <div class="form-group">
+                        <label for="{{ form.image.id_for_label }}">📷 Upload Photo:</label>
+                        {{ form.image }}
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="{{ form.description.id_for_label }}">📝 Description (Optional):</label>
+                        {{ form.description }}
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="{{ form.severity.id_for_label }}">⚠️ Severity Level:</label>
+                        {{ form.severity }}
+                    </div>
+                    
+                    <div class="hidden">
+                        {{ form.location_lat }}
+                        {{ form.location_lng }}
+                    </div>
+                    
+                    <button type="submit" class="btn" id="submitBtn" style="width: 100%;">
+                        🚀 Submit Report
+                    </button>
+                </form>
+                
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>Processing your report...</p>
+                </div>
+            </div>
+            
+            <div class="map-section">
+                <h2>🗺️ Waste Reports Map</h2>
+                <div id="map" class="map"></div>
+                
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-number" id="totalReports">0</div>
+                        <div class="stat-label">Total Reports</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="confirmedReports">0</div>
+                        <div class="stat-label">Confirmed</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Initialize map with India center
+    var map = L.map('map').setView([20.5937, 78.9629], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // Handle reports data
+    var reports = [];
+    try {
+        reports = JSON.parse('{{ reports_json|escapejs }}') || [];
+    } catch (e) {
+        console.log('Error parsing reports data:', e);
+    }
+    
+    // Initialize map and stats
+    updateMap(reports);
+    updateStats(reports);
+
+    function updateMap(reports) {
+        // Clear existing markers
+        map.eachLayer(function(layer) {
+            if (layer instanceof L.Marker) {
+                map.removeLayer(layer);
+            }
+        });
+        
+        reports.forEach(function(report) {
+            if (report.location_lat && report.location_lng) {
+                var severityColors = {
+                    'low': '#28a745',
+                    'medium': '#ffc107',
+                    'high': '#fd7e14',
+                    'critical': '#dc3545'
+                };
+                
+                var color = severityColors[report.severity] || '#28a745';
+                
+                L.marker([report.location_lat, report.location_lng])
+                    .addTo(map)
+                    .bindPopup(
+                        '<div style="min-width: 200px;">' +
+                        '<h4>Waste Report #' + report.id + '</h4>' +
+                        '<p><strong>Type:</strong> ' + (report.waste_type || 'Unknown') + '</p>' +
+                        '<p><strong>Severity:</strong> ' + (report.severity || 'Medium') + '</p>' +
+                        '<p><strong>Confidence:</strong> ' + ((report.confidence * 100).toFixed(1)) + '%</p>' +
+                        '</div>'
+                    )
+                    .openPopup();
+            }
+        });
+    }
+
+    function updateStats(reports) {
+        var totalReportsElement = document.getElementById('totalReports');
+        var confirmedReportsElement = document.getElementById('confirmedReports');
+        
+        if (totalReportsElement) {
+            totalReportsElement.textContent = reports.length;
+        }
+        
+        if (confirmedReportsElement) {
+            var confirmed = reports.filter(function(r) { return r.confidence > 0.7; }).length;
+            confirmedReportsElement.textContent = confirmed;
+        }
+    }
+
+    // Handle geolocation and update form
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            function(pos) {
+                var lat = pos.coords.latitude;
+                var lng = pos.coords.longitude;
+                
+                // Add user location marker
+                L.marker([lat, lng])
+                    .addTo(map)
+                    .bindPopup("📍 You are here")
+                    .openPopup();
+                
+                map.setView([lat, lng], 12);
+                
+                // Update form fields with geolocation
+                var latField = document.getElementById('id_location_lat');
+                var lngField = document.getElementById('id_location_lng');
+                
+                if (latField) latField.value = lat;
+                if (lngField) lngField.value = lng;
+            },
+            function(error) {
+                console.log('Geolocation failed: ' + error.message);
+                map.setView([20.5937, 78.9629], 5);
+            }
+        );
+    } else {
+        console.log('Geolocation not supported');
+        map.setView([20.5937, 78.9629], 5);
+    }
+
+    // Handle form submission
+    var reportForm = document.getElementById('reportForm');
+    if (reportForm) {
+        reportForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            var submitBtn = document.getElementById('submitBtn');
+            var loading = document.getElementById('loading');
+            var alert = document.getElementById('alert');
+            
+            if (!submitBtn || !loading || !alert) {
+                console.error('Required elements not found');
+                return;
+            }
+            
+            // Show loading state
+            submitBtn.disabled = true;
+            submitBtn.textContent = '🔄 Processing...';
+            loading.style.display = 'block';
+            alert.style.display = 'none';
+            
+            var formData = new FormData(e.target);
+            
+            fetch('{% url "home" %}', {
+                method: 'POST',
+                body: formData
+            })
+            .then(function(response) {
+                return response.json();
+            })
+            .then(function(data) {
+                if (data.status === 'success') {
+                    showAlert('success', data.message || 'Report submitted successfully!');
+                    e.target.reset();
+                    
+                    // Update map with new reports
+                    if (data.reports) {
+                        var newReports = JSON.parse(data.reports);
+                        updateMap(newReports);
+                        updateStats(newReports);
+                    }
+                } else {
+                    showAlert('error', data.message || 'Failed to submit report. Please try again.');
+                }
+            })
+            .catch(function(error) {
+                console.error('Error:', error);
+                showAlert('error', 'Network error. Please check your connection and try again.');
+            })
+            .finally(function() {
+                // Reset button state
+                submitBtn.disabled = false;
+                submitBtn.textContent = '🚀 Submit Report';
+                loading.style.display = 'none';
+            });
+        });
+    }
+
+    function showAlert(type, message) {
+        var alert = document.getElementById('alert');
+        if (alert) {
+            alert.className = 'alert alert-' + type;
+            alert.textContent = message;
+            alert.style.display = 'block';
+            
+            // Auto-hide after 5 seconds
+            setTimeout(function() {
+                alert.style.display = 'none';
+            }, 5000);
+        }
+    }
+</script>
+{% endblock %}

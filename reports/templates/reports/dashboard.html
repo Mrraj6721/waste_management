@@ -1,0 +1,147 @@
+{% extends 'reports/base.html' %}
+
+{% block title %}Dashboard - Community Waste Reporting{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-image {
+        max-width: 100px;
+        max-height: 100px;
+        border-radius: 8px;
+        object-fit: cover;
+    }
+    
+    .status-form {
+        display: inline-block;
+    }
+    
+    .status-select {
+        padding: 4px 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 12px;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .btn-sm {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h1>📊 Waste Reports Dashboard</h1>
+        <p>Welcome, {{ user.username }}! Manage and track waste reports</p>
+    </div>
+    
+    <div class="card-body">
+        <!-- Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{{ total_reports }}</div>
+                <div class="stat-label">Total Reports</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ pending_reports }}</div>
+                <div class="stat-label">Pending Review</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ confirmed_reports }}</div>
+                <div class="stat-label">Confirmed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ resolved_reports }}</div>
+                <div class="stat-label">Resolved</div>
+            </div>
+        </div>
+        
+        <!-- Reports Table -->
+        <div class="card">
+            <div class="card-header">
+                <h2>📋 All Reports</h2>
+            </div>
+            <div class="card-body">
+                {% if reports %}
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Image</th>
+                                <th>Location</th>
+                                <th>Waste Type</th>
+                                <th>Severity</th>
+                                <th>Status</th>
+                                <th>Confidence</th>
+                                <th>Reported</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for report in reports %}
+                            <tr>
+                                <td>#{{ report.id }}</td>
+                                <td>
+                                    {% if report.image %}
+                                        <img src="{{ report.image.url }}" alt="Waste Image" class="report-image">
+                                    {% else %}
+                                        <span>No Image</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if report.address %}
+                                        {{ report.address|truncatechars:50 }}
+                                    {% else %}
+                                        {{ report.location_lat|floatformat:4 }}, {{ report.location_lng|floatformat:4 }}
+                                    {% endif %}
+                                </td>
+                                <td>{{ report.get_waste_type_display }}</td>
+                                <td>
+                                    <span class="badge badge-{{ report.severity }}">
+                                        {{ report.get_severity_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge badge-{{ report.status }}">
+                                        {{ report.get_status_display }}
+                                    </span>
+                                </td>
+                                <td>{{ report.confidence|floatformat:1 }}%</td>
+                                <td>{{ report.reported_at|date:"M d, Y" }}</td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <a href="{% url 'report_detail' report.id %}" class="btn btn-sm">👁️ View</a>
+                                        <form method="post" action="{% url 'update_report_status' report.id %}" class="status-form">
+                                            {% csrf_token %}
+                                            <select name="status" class="status-select" onchange="this.form.submit()">
+                                                {% for value, label in report.STATUS_CHOICES %}
+                                                    <option value="{{ value }}" {% if report.status == value %}selected{% endif %}>
+                                                        {{ label }}
+                                                    </option>
+                                                {% endfor %}
+                                            </select>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <div style="text-align: center; padding: 2rem;">
+                        <h3>📭 No Reports Yet</h3>
+                        <p>No waste reports have been submitted yet.</p>
+                        <a href="{% url 'home' %}" class="btn">🏠 Go to Home</a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

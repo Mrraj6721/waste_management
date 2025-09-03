@@ -3,7 +3,7 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = '@3t-pgt(yhmepcf0ttxg#4b%&$934xi#&lx1*pbq%e*(w2@1!+'  # Replace with `python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"`
+SECRET_KEY = 'SECRET_KEY'  # Replace with `python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"`
 DEBUG = True
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 
@@ -84,7 +84,7 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'mrraj6721@gmail.com'  # Replace with your Gmail
-EMAIL_HOST_PASSWORD = 'gsgw feyq lggl upuy'  # Replace with Google App Password
+EMAIL_HOST_PASSWORD = 'EMAIL_HOST_PASSWORD'  # Replace with Google App Password
 DEFAULT_FROM_EMAIL = 'mrraj6721@gmail.com'
 
 # Authority notification settings
